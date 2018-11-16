@@ -56,7 +56,7 @@ typedef struct _vg_pattern_s vg_pattern_t;
 struct _vg_pattern_s {
 	vg_pattern_t *next;
 	vg_pattern_t *prev;
-	char *prefix;
+	const char *prefix;
 };
 
 typedef struct _vg_pattern_root_s vg_pattern_root_t;

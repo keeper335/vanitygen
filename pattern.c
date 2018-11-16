@@ -687,111 +687,69 @@ int str_cmp(const char * a, const char * b) {
 	return 0;
 }
 
-void
-vg_prefix_avl_printall(avl_root_t *rootp)
+static vg_pattern_t *
+vg_pattern_search(vg_pattern_root_t *rootp, char * pattern)
 {
-	vg_prefix_t *vp;
-	avl_item_t *itemp = rootp->ar_root;
-	while (itemp) {
-		vp = avl_item_entry(itemp, vg_prefix_t, vp_item);
-		printf("%s\n", vp->vp_pattern);
-        itemp = itemp->ai_left;
-	}
-
-    itemp = rootp->ar_root;
-    while (itemp) {
-        vp = avl_item_entry(itemp, vg_prefix_t, vp_item);
-        printf("%s\n", vp->vp_pattern);
-        itemp = itemp->ai_right;
-    }
-
-}
-
-static vg_prefix_t *
-vg_prefix_avl_search(avl_root_t *rootp, char * pattern)
-{
-	vg_prefix_t *vp;
-	avl_item_t *itemp = rootp->ar_root;
+	vg_pattern_t *itemp = rootp->next;
 
 	while (itemp) {
-		vp = avl_item_entry(itemp, vg_prefix_t, vp_item);
-		int cmp = str_cmp(pattern, vp->vp_pattern);
-		if (cmp < 0) {
-			itemp = itemp->ai_left;
-		} else {
-			if (cmp > 0) {
-				itemp = itemp->ai_right;
-			} else
-				return vp;
-		}
+		int cmp = str_cmp(pattern, itemp->prefix);
+		if (cmp > 0) itemp = itemp->next;
+		else if (cmp == 0) return itemp;
+		else break;
 	}
 	return NULL;
-}
-
-static vg_prefix_t *
-vg_prefix_avl_insert(avl_root_t *rootp, vg_prefix_t *vpnew)
-{
-	vg_prefix_t *vp;
-	avl_item_t *itemp = NULL;
-	avl_item_t **ptrp = &rootp->ar_root;
-
-	while (*ptrp) {
-		itemp = *ptrp;
-//		ptrp = &itemp->ai_left;
-		vp = avl_item_entry(itemp, vg_prefix_t, vp_item);
-		int cmp = str_cmp(vpnew->vp_pattern, vp->vp_pattern);
-		if (cmp < 0) {
-			ptrp = &itemp->ai_left;
-		} else {
-			if (cmp > 0) {
-				ptrp = &itemp->ai_right;
-			} else
-				return vp;
-		}
-	}
-
-	vpnew->vp_item.ai_up = itemp;
-	itemp = &vpnew->vp_item;
-	*ptrp = itemp;
-	avl_insert_fix(rootp, itemp);
-	return NULL;
-}
-
-static vg_prefix_t *
-vg_prefix_add(avl_root_t *rootp, const char *pattern)
-{
-	vg_prefix_t *vp, *vp2;
-	vp = (vg_prefix_t *) malloc(sizeof(*vp));
-	if (vp) {
-		avl_item_init(&vp->vp_item);
-		vp->vp_sibling = NULL;
-		vp->vp_pattern = pattern;
-		vp2 = vg_prefix_avl_insert(rootp, vp);
-		if (vp2 != NULL) {
-			fprintf(stderr,
-				"Prefix '%s' ignored, overlaps '%s'\n",
-				pattern, vp2->vp_pattern);
-			vg_prefix_free(vp);
-			vp = NULL;
-		}
-	}
-	return vp;
 }
 
 static void
-vg_prefix_delete(avl_root_t *rootp, vg_prefix_t *vp)
+vg_prefix_add(vg_pattern_root_t *rootp, const char *pattern)
 {
-	vg_prefix_t *sibp, *delp;
+	//printf("vg_prefix_add >> %s\n", pattern);
+	vg_pattern_t *item = (vg_pattern_t *)malloc(sizeof(vg_pattern_t));
+	item->prefix = pattern;
+	item->next = NULL;
+	item->prev = NULL;
 
-	avl_remove(rootp, &vp->vp_item);
-	sibp = vp->vp_sibling;
-	while (sibp && sibp != vp) {
-		avl_remove(rootp, &sibp->vp_item);
-		delp = sibp;
-		sibp = sibp->vp_sibling;
-		vg_prefix_free(delp);
+	if (!rootp->next) {
+		rootp->next = item;
+		//printf("vg_prefix_add >> add root elem\n");
 	}
-	vg_prefix_free(vp);
+	else {
+		vg_pattern_t *tmp_this = rootp->next, *tmp_prev = NULL;
+		while (tmp_this) {
+			int _res = str_cmp(pattern, tmp_this->prefix);
+			if (_res > 0) {
+				tmp_prev = tmp_this;
+				tmp_this = tmp_this->next;
+				continue;
+			}
+			else if (_res == 0) {
+				//equals so ignore this prefix
+				printf("This pattern is already in the list %s\n", pattern);
+				return;
+			}
+
+			if (!tmp_this->prev) {
+				//printf("vg_prefix_add >> add to the head\n");
+				rootp->next = item;
+			}
+			else {
+				//printf("vg_prefix_add >> insert\n");
+				item->prev = tmp_this->prev;
+				item->prev->next = item;
+			}
+            item->next = tmp_this;
+            item->next->prev = item;
+			break;
+		}
+
+		if (!tmp_this) {
+			//printf("vg_prefix_add >> add to the tail\n");
+			item->prev = tmp_prev;
+			tmp_prev->next = item;
+		}
+	}
+	//printf("vg_prefix_add >> exit\n");
 }
 
 typedef struct _vg_prefix_context_s {
@@ -811,17 +769,14 @@ static void
 vg_prefix_context_clear_all_patterns(vg_context_t *vcp)
 {
 	vg_prefix_context_t *vcpp = (vg_prefix_context_t *) vcp;
-	vg_prefix_t *vp;
-	unsigned long npfx_left = 0;
 
-	while (!avl_root_empty(&vcpp->vcp_avlroot)) {
-		vp = avl_item_entry(vcpp->vcp_avlroot.ar_root,
-				    vg_prefix_t, vp_item);
-		vg_prefix_delete(&vcpp->vcp_avlroot, vp);
-		npfx_left++;
+	vg_pattern_t *item = vcp->vc_pattern_root->next;
+	while (item) {
+		vg_pattern_t *tmp_next = item->next;
+		free(item);
+		item=tmp_next;
 	}
 
-	assert(npfx_left == vcpp->base.vc_npatterns);
 	vcpp->base.vc_npatterns = 0;
 	vcpp->base.vc_npatterns_start = 0;
 	vcpp->base.vc_found = 0;
@@ -833,6 +788,7 @@ vg_prefix_context_free(vg_context_t *vcp)
 {
 	vg_prefix_context_t *vcpp = (vg_prefix_context_t *) vcp;
 	vg_prefix_context_clear_all_patterns(vcp);
+	free(vcp->vc_pattern_root);
 	BN_clear_free(&vcpp->vcp_difficulty);
 	free(vcpp);
 }
@@ -841,11 +797,11 @@ static int
 vg_prefix_context_add_patterns(vg_context_t *vcp,
 			       const char ** const patterns, int npatterns)
 {
-	//vg_prefix_context_t *vcpp = (vg_prefix_context_t *) vcp;
 	vg_prefix_t *vp;
 	BN_CTX *bnctx;
 	BIGNUM bntmp, bntmp2, bntmp3;
 	int i;
+	vg_pattern_t *itemp;
 
 	bnctx = BN_CTX_new();
 	BN_init(&bntmp);
@@ -853,14 +809,20 @@ vg_prefix_context_add_patterns(vg_context_t *vcp,
 	BN_init(&bntmp3);
 
 	for (i = 0; i < npatterns; i++) {
-		vp = vg_prefix_add(&vcpp->vcp_avlroot, patterns[i]);
-		if (!vp)
-			continue;
-
+		vg_prefix_add(vcp->vc_pattern_root, patterns[i]);
 	}
-    vg_prefix_avl_printall(&vcpp->vcp_avlroot);
+    printf("point 2\n");
 
-	vcpp->base.vc_npatterns = npatterns;
+	itemp = vcp->vc_pattern_root->next;
+	while(itemp) {
+		printf("Pattern %s\n", itemp->prefix);
+		itemp = itemp->next;
+	}
+
+    printf("point 3\n");
+
+
+	vcp->vc_npatterns = npatterns;
 
 	BN_clear_free(&bntmp);
 	BN_clear_free(&bntmp2);
@@ -872,8 +834,8 @@ vg_prefix_context_add_patterns(vg_context_t *vcp,
 static int
 vg_prefix_test(vg_exec_context_t *vxcp)
 {
-	vg_prefix_context_t *vcpp = (vg_prefix_context_t *) vxcp->vxc_vc;
-	vg_prefix_t *vp;
+	vg_context_t *vcp = vxcp->vxc_vc;
+	vg_pattern_t *vp;
 	int res = 0;
 
 	/*
@@ -887,27 +849,22 @@ vg_prefix_test(vg_exec_context_t *vxcp)
 	vg_b58_encode_check(vxcp->vxc_binres, 21, addr);
 
 research:
-	vp = vg_prefix_avl_search(&vcpp->vcp_avlroot, addr);
+	vp = vg_pattern_search(vcp->vc_pattern_root, addr);
 	if (vp) {
 		if (vg_exec_context_upgrade_lock(vxcp))
 			goto research;
 
 		vg_exec_context_consolidate_key(vxcp);
-//		vcpp->base.vc_output_match(&vcpp->base, vxcp->vxc_key,
-//					   vp->vp_pattern, &combined_compressed);
-		vcpp->base.vc_output_match(&vcpp->base, vxcp,
-					   vp->vp_pattern);
+		vcp->vc_output_match(vcp, vxcp,
+					   vp->prefix);
 
-		vcpp->base.vc_found++;
+		vcp->vc_found++;
 
-		if (vcpp->base.vc_only_one) {
+		if (vcp->vc_only_one) {
 			return 2;
 		}
 
 		res = 1;
-	}
-	if (avl_root_empty(&vcpp->vcp_avlroot)) {
-		return 2;
 	}
 	return res;
 }
@@ -932,259 +889,11 @@ vg_prefix_context_new(int addrtype, int privtype, int caseinsensitive)
 			vg_prefix_context_clear_all_patterns;
 		vcpp->base.vc_test = vg_prefix_test;
 		vcpp->base.vc_hash160_sort = NULL;
-		avl_root_init(&vcpp->vcp_avlroot);
+		//avl_root_init(&vcpp->vcp_avlroot);
 		BN_init(&vcpp->vcp_difficulty);
 		vcpp->vcp_caseinsensitive = caseinsensitive;
+		vcpp->base.vc_pattern_root = (vg_pattern_root_t *)malloc(sizeof(vg_pattern_root_t));
+		vcpp->base.vc_pattern_root->next = NULL;
 	}
 	return &vcpp->base;
 }
-
-
-#ifndef NO_PCRE
-
-typedef struct _vg_regex_context_s {
-	vg_context_t		base;
-	pcre 			**vcr_regex;
-	pcre_extra		**vcr_regex_extra;
-	const char		**vcr_regex_pat;
-	unsigned long		vcr_nalloc;
-} vg_regex_context_t;
-
-static int
-vg_regex_context_add_patterns(vg_context_t *vcp,
-			      const char ** const patterns, int npatterns)
-{
-	vg_regex_context_t *vcrp = (vg_regex_context_t *) vcp;
-	const char *pcre_errptr;
-	int pcre_erroffset;
-	unsigned long i, nres, count;
-	void **mem;
-
-	if (!npatterns)
-		return 1;
-
-	if (npatterns > (vcrp->vcr_nalloc - vcrp->base.vc_npatterns)) {
-		count = npatterns + vcrp->base.vc_npatterns;
-		if (count < (2 * vcrp->vcr_nalloc)) {
-			count = (2 * vcrp->vcr_nalloc);
-		}
-		if (count < 16) {
-			count = 16;
-		}
-		mem = (void **) malloc(3 * count * sizeof(void*));
-		if (!mem)
-			return 0;
-
-		for (i = 0; i < vcrp->base.vc_npatterns; i++) {
-			mem[i] = vcrp->vcr_regex[i];
-			mem[count + i] = vcrp->vcr_regex_extra[i];
-			mem[(2 * count) + i] = (void *) vcrp->vcr_regex_pat[i];
-		}
-
-		if (vcrp->vcr_nalloc)
-			free(vcrp->vcr_regex);
-		vcrp->vcr_regex = (pcre **) mem;
-		vcrp->vcr_regex_extra = (pcre_extra **) &mem[count];
-		vcrp->vcr_regex_pat = (const char **) &mem[2 * count];
-		vcrp->vcr_nalloc = count;
-	}
-
-	nres = vcrp->base.vc_npatterns;
-	for (i = 0; i < npatterns; i++) {
-		vcrp->vcr_regex[nres] =
-			pcre_compile(patterns[i], 0,
-				     &pcre_errptr, &pcre_erroffset, NULL);
-		if (!vcrp->vcr_regex[nres]) {
-			const char *spaces = "                ";
-			fprintf(stderr, "%s\n", patterns[i]);
-			while (pcre_erroffset > 16) {
-				fprintf(stderr, "%s", spaces);
-				pcre_erroffset -= 16;
-			}
-			if (pcre_erroffset > 0)
-				fprintf(stderr,
-					"%s", &spaces[16 - pcre_erroffset]);
-			fprintf(stderr, "^\nRegex error: %s\n", pcre_errptr);
-			continue;
-		}
-		vcrp->vcr_regex_extra[nres] =
-			pcre_study(vcrp->vcr_regex[nres], 0, &pcre_errptr);
-		if (pcre_errptr) {
-			fprintf(stderr, "Regex error: %s\n", pcre_errptr);
-			pcre_free(vcrp->vcr_regex[nres]);
-			continue;
-		}
-		vcrp->vcr_regex_pat[nres] = patterns[i];
-		nres += 1;
-	}
-
-	if (nres == vcrp->base.vc_npatterns)
-		return 0;
-
-	vcrp->base.vc_npatterns_start += (nres - vcrp->base.vc_npatterns);
-	vcrp->base.vc_npatterns = nres;
-	return 1;
-}
-
-static void
-vg_regex_context_clear_all_patterns(vg_context_t *vcp)
-{
-	vg_regex_context_t *vcrp = (vg_regex_context_t *) vcp;
-	int i;
-	for (i = 0; i < vcrp->base.vc_npatterns; i++) {
-		if (vcrp->vcr_regex_extra[i])
-			pcre_free(vcrp->vcr_regex_extra[i]);
-		pcre_free(vcrp->vcr_regex[i]);
-	}
-	vcrp->base.vc_npatterns = 0;
-	vcrp->base.vc_npatterns_start = 0;
-	vcrp->base.vc_found = 0;
-}
-
-static void
-vg_regex_context_free(vg_context_t *vcp)
-{
-	vg_regex_context_t *vcrp = (vg_regex_context_t *) vcp;
-	vg_regex_context_clear_all_patterns(vcp);
-	if (vcrp->vcr_nalloc)
-		free(vcrp->vcr_regex);
-	free(vcrp);
-}
-
-static int
-vg_regex_test(vg_exec_context_t *vxcp)
-{
-	vg_regex_context_t *vcrp = (vg_regex_context_t *) vxcp->vxc_vc;
-
-	unsigned char hash1[32], hash2[32];
-	int i, zpfx, p, d, nres, re_vec[9];
-	char b58[40];
-	BIGNUM bnrem;
-	BIGNUM *bn, *bndiv, *bnptmp;
-	int res = 0;
-
-	pcre *re;
-
-	BN_init(&bnrem);
-
-	/* Hash the hash and write the four byte check code */
-	SHA256(vxcp->vxc_binres, 21, hash1);
-	SHA256(hash1, sizeof(hash1), hash2);
-	memcpy(&vxcp->vxc_binres[21], hash2, 4);
-
-	bn = &vxcp->vxc_bntmp;
-	bndiv = &vxcp->vxc_bntmp2;
-
-	BN_bin2bn(vxcp->vxc_binres, 25, bn);
-
-	/* Compute the complete encoded address */
-	for (zpfx = 0; zpfx < 25 && vxcp->vxc_binres[zpfx] == 0; zpfx++);
-	p = sizeof(b58) - 1;
-	b58[p] = '\0';
-	while (!BN_is_zero(bn)) {
-		BN_div(bndiv, &bnrem, bn, &vxcp->vxc_bnbase, vxcp->vxc_bnctx);
-		bnptmp = bn;
-		bn = bndiv;
-		bndiv = bnptmp;
-		d = BN_get_word(&bnrem);
-		b58[--p] = vg_b58_alphabet[d];
-	}
-	while (zpfx--) {
-		b58[--p] = vg_b58_alphabet[0];
-	}
-
-	/*
-	 * Run the regular expressions on it
-	 * SLOW, runs in linear time with the number of REs
-	 */
-restart_loop:
-	nres = vcrp->base.vc_npatterns;
-	if (!nres) {
-		res = 2;
-		goto out;
-	}
-	for (i = 0; i < nres; i++) {
-		d = pcre_exec(vcrp->vcr_regex[i],
-			      vcrp->vcr_regex_extra[i],
-			      &b58[p], (sizeof(b58) - 1) - p, 0,
-			      0,
-			      re_vec, sizeof(re_vec)/sizeof(re_vec[0]));
-
-		if (d <= 0) {
-			if (d != PCRE_ERROR_NOMATCH) {
-				fprintf(stderr, "PCRE error: %d\n", d);
-				res = 2;
-				goto out;
-			}
-			continue;
-		}
-
-		re = vcrp->vcr_regex[i];
-
-		if (vg_exec_context_upgrade_lock(vxcp) &&
-		    ((i >= vcrp->base.vc_npatterns) ||
-		     (vcrp->vcr_regex[i] != re)))
-			goto restart_loop;
-
-		vg_exec_context_consolidate_key(vxcp);
-//		vcrp->base.vc_output_match(&vcrp->base, vxcp->vxc_key,
-//					   vcrp->vcr_regex_pat[i], combined_compressed);
-		vcrp->base.vc_output_match(&vcrp->base, vxcp,
-					   vcrp->vcr_regex_pat[i]);
-		vcrp->base.vc_found++;
-
-		if (vcrp->base.vc_only_one) {
-			res = 2;
-			goto out;
-		}
-
-		if (vcrp->base.vc_remove_on_match) {
-			pcre_free(vcrp->vcr_regex[i]);
-			if (vcrp->vcr_regex_extra[i])
-				pcre_free(vcrp->vcr_regex_extra[i]);
-			nres -= 1;
-			vcrp->base.vc_npatterns = nres;
-			if (!nres) {
-				res = 2;
-				goto out;
-			}
-			vcrp->vcr_regex[i] = vcrp->vcr_regex[nres];
-			vcrp->vcr_regex_extra[i] =
-				vcrp->vcr_regex_extra[nres];
-			vcrp->vcr_regex_pat[i] = vcrp->vcr_regex_pat[nres];
-			vcrp->base.vc_npatterns = nres;
-			vcrp->base.vc_pattern_generation++;
-		}
-		res = 1;
-	}
-out:
-	BN_clear_free(&bnrem);
-	return res;
-}
-
-vg_context_t *
-vg_regex_context_new(int addrtype, int privtype)
-{
-	vg_regex_context_t *vcrp;
-
-	vcrp = (vg_regex_context_t *) malloc(sizeof(*vcrp));
-	if (vcrp) {
-		memset(vcrp, 0, sizeof(*vcrp));
-		vcrp->base.vc_addrtype = addrtype;
-		vcrp->base.vc_privtype = privtype;
-		vcrp->base.vc_npatterns = 0;
-		vcrp->base.vc_npatterns_start = 0;
-		vcrp->base.vc_found = 0;
-		vcrp->base.vc_chance = 0.0;
-		vcrp->base.vc_free = vg_regex_context_free;
-		vcrp->base.vc_add_patterns = vg_regex_context_add_patterns;
-		vcrp->base.vc_clear_all_patterns =
-			vg_regex_context_clear_all_patterns;
-		vcrp->base.vc_test = vg_regex_test;
-		vcrp->base.vc_hash160_sort = NULL;
-		vcrp->vcr_regex = NULL;
-		vcrp->vcr_nalloc = 0;
-	}
-	return &vcrp->base;
-}
-#endif

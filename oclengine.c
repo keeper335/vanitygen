@@ -1835,7 +1835,7 @@ vg_opencl_loop(vg_exec_context_t *arg)
         //EC_KEY_generate_key(pkey);
 
 		BN_pseudo_rand(&vxcp->vxc_bntmp2, vxcp->vxc_vc->vc_rand_bits, 0, 0);
-		//BN_sub(&vxcp->vxc_bntmp2, &vxcp->vxc_bntmp2, &vxcp->vxc_bntmp);
+		BN_sub(&vxcp->vxc_bntmp2, &vxcp->vxc_bntmp2, &vxcp->vxc_bntmp);
 		vg_set_privkey(&vxcp->vxc_bntmp2, pkey);
 
 		EC_POINT_copy(ppbase[0], EC_KEY_get0_public_key(pkey));
