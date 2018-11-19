@@ -86,7 +86,7 @@ main(int argc, char **argv)
 	int verbose = 1;
 	int npatterns = 0;
 	int nthreads = 0;
-	int worksize = 0;
+	int worksize = 16;
 	int nrows = 0, ncols = 0;
 	int invsize = 0;
 	int remove_on_match = 1;
@@ -280,7 +280,7 @@ main(int argc, char **argv)
 	vcp->vc_pubkeytype = addrtype;
 	vcp->vc_pubkey_base = pubkey_base;
 
-	if (rand_bits < 30)	rand_bits = 160;
+	if (rand_bits < 20)	rand_bits = 256;
 	vcp->vc_rand_bits = rand_bits;
 
 
@@ -303,9 +303,6 @@ main(int argc, char **argv)
 		}
 		if (fp != stdin)
 			fclose(fp);
-
-		if (!regex)
-			vg_prefix_context_set_case_insensitive(vcp, pattfpi[i]);
 
 		if (!vg_context_add_patterns(vcp,
 					     (const char ** const) patterns,

@@ -1656,6 +1656,11 @@ int compute_and_test_address(bignum * zi, __global bn_word * xy, __global uchar 
 		printf("Point x: %x %x %x %x %x %x %x %x\n", c->d[0],c->d[1],c->d[2],c->d[3],c->d[4],c->d[5],c->d[6],c->d[7]);
 	}
 #endif
+
+#ifdef MY_TRACE
+printf("Point x: %x %x %x %x %x %x %x %x\n", c->d[0],c->d[1],c->d[2],c->d[3],c->d[4],c->d[5],c->d[6],c->d[7]);
+#endif
+
 	bn_mul_mont(c, c, workspace);  /* X / Z^2 */
 	bn_from_mont(c, c);
 
@@ -1663,6 +1668,10 @@ int compute_and_test_address(bignum * zi, __global bn_word * xy, __global uchar 
 	if (dump) {
 		printf("Generated x: %x %x %x %x %x %x %x %x\n", c->d[0],c->d[1],c->d[2],c->d[3],c->d[4],c->d[5],c->d[6],c->d[7]);
 	}
+#endif
+
+#ifdef MY_TRACE
+printf("Generated x: %x %x %x %x %x %x %x %x\n", c->d[0],c->d[1],c->d[2],c->d[3],c->d[4],c->d[5],c->d[6],c->d[7]);
 #endif
 	x = *c;
 	
@@ -1681,6 +1690,10 @@ int compute_and_test_address(bignum * zi, __global bn_word * xy, __global uchar 
 	if (dump) {
 		printf("Generated y: %x %x %x %x %x %x %x %x\n", c->d[0],c->d[1],c->d[2],c->d[3],c->d[4],c->d[5],c->d[6],c->d[7]);
 	}
+#endif
+
+#ifdef MY_TRACE
+printf("Generated y: %x %x %x %x %x %x %x %x\n", c->d[0],c->d[1],c->d[2],c->d[3],c->d[4],c->d[5],c->d[6],c->d[7]);
 #endif
 	int found = 0;
     
@@ -1728,6 +1741,14 @@ int compute_and_test_address(bignum * zi, __global bn_word * xy, __global uchar 
 			hash1[8], hash1[9], hash1[10], hash1[11], hash1[12], hash1[13], hash1[14], hash1[15]);
 			printf("\n");
 		}
+#endif
+
+#ifdef MY_TRACE
+			//printf("GPU pre-hash compressed=%d: ", compressed_address);
+			//printf("%08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x\n", 
+			//hash1[0], hash1[1], hash1[2], hash1[3], hash1[4], hash1[5], hash1[6], hash1[7],
+			//hash1[8], hash1[9], hash1[10], hash1[11], hash1[12], hash1[13], hash1[14], hash1[15]);
+			//printf("\n");
 #endif
 		
 		// Hash the first 64 bytes of the buffer
@@ -1794,6 +1815,9 @@ int compute_and_test_address(bignum * zi, __global bn_word * xy, __global uchar 
 #ifdef TRACE
 		if (dump) printf("GPU ripemd160: %08x %08x %08x %08x %08x\n", hash_out[0], hash_out[1], hash_out[2], hash_out[3], hash_out[4]);
 #endif
+#ifdef MY_TRACE
+		//printf("GPU ripemd160: %08x %08x %08x %08x %08x\n", hash_out[0], hash_out[1], hash_out[2], hash_out[3], hash_out[4]);
+#endif
 		int local_offs = get_hash_offset(hash_out)%(LOCAL_MEM_SIZE*8);
 		if (localbitmap[local_offs/(sizeof(uint)*8)]&(1<<(local_offs%(sizeof(uint)*8))))
 			if (get_bit(bitmap, get_hash_offset(hash_out)%bitmap_len))
@@ -1801,6 +1825,7 @@ int compute_and_test_address(bignum * zi, __global bn_word * xy, __global uchar 
 	}
 	return found;
 }
+//#undef TRACE
 
 __kernel void
 heap_invert_and_check(

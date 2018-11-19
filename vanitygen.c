@@ -785,9 +785,6 @@ main(int argc, char **argv)
 		if (fp != stdin)
 			fclose(fp);
 
-		if (!regex)
-			vg_prefix_context_set_case_insensitive(vcp, pattfpi[i]);
-
 		if (!vg_context_add_patterns(vcp,
 					     (const char ** const) patterns,
 					     npatterns))

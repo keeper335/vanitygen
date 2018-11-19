@@ -1,13 +1,12 @@
 CC = cl
 OPENSSL_DIR = C:\OpenSSL-Win64
 PTHREADS_DIR = "E:\coin\pthreads"
-PCRE_DIR = "E:\coin\pcre"
 OPENCL_DIR = "C:\Intel\OpenCL\sdk"
 OPENCL_INCLUDE = /I$(OPENCL_DIR)\\include
 OPENCL_LIBS = $(OPENCL_DIR)\lib\x64\OpenCL.lib
-CFLAGS_BASE = /D_WIN32 /DPTW32_STATIC_LIB /DPCRE_STATIC /DNO_PCRE /I$(OPENSSL_DIR)\include /I$(PTHREADS_DIR) /I$(PCRE_DIR) /Ox /Zi
+CFLAGS_BASE = /D_WIN32 /DPTW32_STATIC_LIB /I$(OPENSSL_DIR)\include /I$(PTHREADS_DIR) /Ox /Zi
 CFLAGS = $(CFLAGS_BASE) /GL
-LIBS = $(OPENSSL_DIR)\lib\libeay32.lib $(PTHREADS_DIR)\pthreadVC2.lib $(PCRE_DIR)\pcre.lib ws2_32.lib user32.lib advapi32.lib gdi32.lib /LTCG /DEBUG /DEFAULTLIB:msvcrt.lib /MACHINE:X64 /SUBSYSTEM:CONSOLE
+LIBS = $(OPENSSL_DIR)\lib\libeay32.lib $(PTHREADS_DIR)\pthreadVC2.lib ws2_32.lib user32.lib advapi32.lib gdi32.lib /LTCG /DEBUG /DEFAULTLIB:msvcrt.lib /NODEFAULTLIB:libcmt.lib /MACHINE:X64 /SUBSYSTEM:CONSOLE
 OBJS = vanitygen.obj oclvanitygen.obj oclengine.obj oclvanityminer.obj keyconv.obj pattern.obj util.obj winglue.obj
 
 all: oclvanitygen.exe
@@ -16,7 +15,7 @@ oclvanitygen.exe: oclvanitygen.obj oclengine.obj pattern.obj util.obj winglue.ob
 	link /nologo /out:$@ $** $(LIBS) $(OPENCL_LIBS)
 
 keyconv.exe: keyconv.obj util.obj winglue.obj
-	link /nologo /out:$@ $** $(LIBS)
+	link /nologo  /out:$@ $** $(LIBS)
 
 .c.obj:
 	@$(CC) /nologo $(CFLAGS) /c /Tp$< /Fo$@

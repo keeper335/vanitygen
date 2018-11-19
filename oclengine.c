@@ -1645,6 +1645,7 @@ int vg_ocl_prefix_check(vg_ocl_context_t *vocp, int slot)
 	found_count = ocl_found_out[0];
 	ocl_found_out[0] = -1;
     vg_ocl_write_arg_buffer(vocp, slot, A_FOUND, ocl_found_out);
+    //printf("prefix check -> %d\n", ocl_found_out[1]);
 
 	if (found_count != -1) {
 		found_count = -found_count-1;
@@ -1840,9 +1841,21 @@ vg_opencl_loop(vg_exec_context_t *arg)
 
 		EC_POINT_copy(ppbase[0], EC_KEY_get0_public_key(pkey));
 
-        //printf("\npkey="); dumpbn(EC_KEY_get0_private_key(pkey));
+#ifdef DUMP_KEY_HEX
+        printf("\nprivate key="); dumpbn(EC_KEY_get0_private_key(pkey));
+        unsigned char eckey_buf[128];
+        EC_POINT_point2oct(pgroup,
+                           ppbase[0],
+                           POINT_CONVERSION_UNCOMPRESSED,
+                           eckey_buf,
+                           sizeof(eckey_buf),
+                           NULL);
+        printf("public key = ");
+        dumphex(eckey_buf, 65);
+#endif
 
-		vocp->voc_rekey_func(vocp);
+        vocp->voc_rekey_func(vocp);
+
 
 		/* Build the base array of sequential points */
 		for (i = 1; i < ncols; i++) {
@@ -2474,13 +2487,13 @@ vg_ocl_context_new(vg_context_t *vcp,
 		else
 			worksize = 256;
 	}
-	
+
 	cl_ulong bitmapsize;
 	memsize = vg_ocl_device_getulong(vocp->voc_ocldid, CL_DEVICE_GLOBAL_MEM_SIZE);
 	allocsize = vg_ocl_device_getulong(vocp->voc_ocldid, CL_DEVICE_MAX_MEM_ALLOC_SIZE);
 	
 	if (vcp->vc_verbose>1) printf("allocsize=%lld, memsize=%lld\n", allocsize, memsize);
-	
+
 	if (!ncols) {
 		bitmapsize = min(allocsize, memsize/2);
 		memsize -= bitmapsize;
