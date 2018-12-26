@@ -400,7 +400,7 @@ vg_output_timing_console(vg_context_t *vcp, double count,
 {
 	double targ;
 	char *unit;
-	char linebuf[80];
+	char linebuf[160];
 	int rem, p;
     char *pkey_buf;
     double total_readable = total;
@@ -442,8 +442,8 @@ vg_output_timing_console(vg_context_t *vcp, double count,
 	rem = sizeof(linebuf);
     pkey_buf = BN_bn2hex(EC_KEY_get0_private_key(vcp->vc_threads->vxc_key));
 
-	p = snprintf(linebuf, rem, "[%.2f %s][total %.2f %c][address %s]",
-		     targ, unit, total_readable, total_unit, pkey_buf);
+	p = snprintf(linebuf, rem, "[%.2f %s][total %.2f %c][address %s][gpu ret %d addr %s]",
+		     targ, unit, total_readable, total_unit, pkey_buf, vcp->vc_found_from_gpu, vcp->vc_found_from_gpu_addr);
 
     if (pkey_buf)
         OPENSSL_free(pkey_buf);

@@ -1639,7 +1639,6 @@ int vg_ocl_prefix_check(vg_ocl_context_t *vocp, int slot)
 
 	/* Retrieve the found indicator */
 
-    
 	ocl_found_out = (uint32_t *)malloc(vocp->voc_arg_size[slot][A_FOUND]);
     vg_ocl_read_arg_buffer(vocp, slot, A_FOUND, ocl_found_out);
 	found_count = ocl_found_out[0];
@@ -1647,8 +1646,13 @@ int vg_ocl_prefix_check(vg_ocl_context_t *vocp, int slot)
     vg_ocl_write_arg_buffer(vocp, slot, A_FOUND, ocl_found_out);
     //printf("prefix check -> %d\n", ocl_found_out[1]);
 
+	//vcp->vc_found_from_gpu = found_count;
+
 	if (found_count != -1) {
 		found_count = -found_count-1;
+		vcp->vc_found_from_gpu = found_count;
+
+
 		if (vocp->base.vxc_vc->vc_verbose > 1) printf("\nFound %d candidadtes, check on CPU\n", found_count);
 		/* GPU code claims match, verify with CPU version */
 		int orig_delta = vxcp->vxc_delta;
@@ -1661,6 +1665,13 @@ int vg_ocl_prefix_check(vg_ocl_context_t *vocp, int slot)
 			for (vxcp->vc_combined_compressed=0; vxcp->vc_combined_compressed<2; vxcp->vc_combined_compressed++) {
 				vg_exec_context_calc_address(vxcp);
 				if (vocp->base.vxc_vc->vc_verbose > 1) {printf("check key=");dumpbn(EC_KEY_get0_private_key(vxcp->vxc_key));}
+
+				if (found_count == 1) {
+					char *buf = BN_bn2hex(EC_KEY_get0_private_key(vxcp->vxc_key));
+					memcpy(vcp->vc_found_from_gpu_addr, buf, sizeof(char) * 64);
+					if (buf)
+						OPENSSL_free(buf);
+				}
 
 				/* Make sure the GPU produced the expected hash */
 				if (test_func(vxcp)) {
@@ -1679,7 +1690,7 @@ int vg_ocl_prefix_check(vg_ocl_context_t *vocp, int slot)
 							vcp->vc_pubkeytype, addr_buf);
 						vg_encode_privkey(vxcp->vxc_key, vcp->vc_privtype, privkey_buf);
 					}
-					//printf("Address: %s\nPrivkey: %s\n", addr_buf, privkey_buf);
+					printf("\nAddress: %s\nPrivkey: %s\n", addr_buf, privkey_buf);
 					res = 1;
 				}
 			}
@@ -1828,6 +1839,7 @@ vg_opencl_loop(vg_exec_context_t *arg)
 
 	while (1) {
 		// key -= round*niterations
+        //BIGNUM tmp_mult_;
 		BN_set_word(&vxcp->vxc_bntmp, round*niterations);
 		//BN_sub(&vxcp->vxc_bntmp2,
 		//	   EC_KEY_get0_private_key(pkey),
@@ -1958,7 +1970,7 @@ vg_opencl_loop(vg_exec_context_t *arg)
 		if (vcp->vc_verbose > 1) printf("\nsave the priv. key to a file");
 		if (save_file_name) {
 			//vg_encode_privkey(vxcp->vxc_key, vcp->vc_privtype, privkey_buf);
-			FILE *sf = fopen(save_file_name, "w");
+			FILE *sf = fopen(save_file_name, "a");
 			if (sf) {
 				char *privkey_buf = BN_bn2hex(EC_KEY_get0_private_key(vxcp->vxc_key));
 				fputs(privkey_buf, sf);

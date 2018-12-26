@@ -279,6 +279,7 @@ main(int argc, char **argv)
 	vcp->vc_only_one = only_one;
 	vcp->vc_pubkeytype = addrtype;
 	vcp->vc_pubkey_base = pubkey_base;
+	memset(vcp->vc_found_from_gpu_addr, 0, sizeof(char) * 66);
 
 	if (rand_bits < 20)	rand_bits = 256;
 	vcp->vc_rand_bits = rand_bits;

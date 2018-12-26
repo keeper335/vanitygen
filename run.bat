@@ -1,0 +1,1 @@
+oclvanitygen.exe -r 59 -D 2:0 -f addresses.txt -o found.txt -k lastkey.txt fd83b7c9fdca96
