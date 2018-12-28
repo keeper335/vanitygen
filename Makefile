@@ -1,3 +1,4 @@
+#install libssl-dev ocl-icd-opencl-dev  libpcre3-dev     for ubuntu 
 LIBS=-lpcre -lcrypto -lm -lpthread
 CFLAGS=-ggdb -O3 -Wall -march=native
 OBJS=vanitygen.o oclvanitygen.o oclvanityminer.o oclengine.o keyconv.o pattern.o util.o rmd160.o sha256.o
