@@ -11,6 +11,9 @@ OBJS = vanitygen.obj oclvanitygen.obj oclengine.obj oclvanityminer.obj keyconv.o
 
 all: oclvanitygen.exe
 
+rsha256.exe: rsha256.obj
+    link /nologo /out:$A $** $(LIBS)
+
 oclvanitygen.exe: oclvanitygen.obj oclengine.obj pattern.obj util.obj winglue.obj
 	link /nologo /out:$@ $** $(LIBS) $(OPENCL_LIBS)
 

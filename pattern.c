@@ -425,7 +425,7 @@ vg_output_timing_console(vg_context_t *vcp, double count,
     double total_readable = total;
     char total_unit = ' ';
     vg_exec_context_t *vxcp = vcp->vc_threads;
-
+printf("reached the line!\n");
 
 	targ = rate;
 	unit = "key/s";
@@ -467,7 +467,6 @@ vg_output_timing_console(vg_context_t *vcp, double count,
 	}
 	printf("\r%s", linebuf);
 	fflush(stdout);
-
 
 	/* write gpu fail addresses to file */
     if (vcp->vc_found_from_gpu == 1 && 0 != str_cmp((const unsigned char *) vcp->vc_found_from_gpu_addr, (const unsigned char *) vcp->vc_stored_gpu_addr, 64)) {
