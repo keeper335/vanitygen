@@ -132,6 +132,7 @@ struct _vg_context_s {
 	int         vc_rand_bits;
 	int         vc_found_from_gpu;
 	char        vc_found_from_gpu_addr[66];
+    char        vc_stored_gpu_addr[66];
 
 	vg_exec_context_t	*vc_threads;
 	int			vc_thread_excl;

@@ -32,6 +32,25 @@
 
 #include "util.h"
 
+
+int str_cmp(const unsigned char * a, const unsigned char * b, int len) {
+    for (int i=0; i < len; i++) {
+        if (a[i]<b[i]) {
+#ifdef DEBUG_PREFIXES
+            printf("%02x less than %02x\n", a[i], b[i] );
+#endif
+            return -1;
+        }
+        else if (a[i]>b[i]) {
+#ifdef DEBUG_PREFIXES
+            printf("%02x more than %02x\n", a[i], b[i] );
+#endif
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /*
  * Common code for execution helper
  */
@@ -405,6 +424,7 @@ vg_output_timing_console(vg_context_t *vcp, double count,
     char *pkey_buf;
     double total_readable = total;
     char total_unit = ' ';
+    vg_exec_context_t *vxcp = vcp->vc_threads;
 
 
 	targ = rate;
@@ -424,26 +444,14 @@ vg_output_timing_console(vg_context_t *vcp, double count,
 		if (total_readable > 1000) {
 			total_unit = 'G';
 			total_readable /= 1000.0;
-			if (total_readable > 1000) {
-				total_unit = 'T';
-				total_readable /= 1000.0;
-				if (total_readable > 1000) {
-					total_unit = 'P';
-					total_readable /= 1000.0;
-					if (total_readable > 1000) {
-						total_unit = 'E';
-						total_readable /= 1000.0;
-					}
-				}
-			}
 		}
 	}
 
 	rem = sizeof(linebuf);
-    pkey_buf = BN_bn2hex(EC_KEY_get0_private_key(vcp->vc_threads->vxc_key));
+    pkey_buf = BN_bn2hex(EC_KEY_get0_private_key(vxcp->vxc_key));
 
-	p = snprintf(linebuf, rem, "[%.2f %s][total %.2f %c][address %s][gpu ret %d addr %s]",
-		     targ, unit, total_readable, total_unit, pkey_buf, vcp->vc_found_from_gpu, vcp->vc_found_from_gpu_addr);
+	p = snprintf(linebuf, rem, "[%.2f %s][total %.2f %c][address %s][gpu ret %d]",
+		     targ, unit, total_readable, total_unit, pkey_buf, vcp->vc_found_from_gpu);
 
     if (pkey_buf)
         OPENSSL_free(pkey_buf);
@@ -459,6 +467,39 @@ vg_output_timing_console(vg_context_t *vcp, double count,
 	}
 	printf("\r%s", linebuf);
 	fflush(stdout);
+
+
+	/* write gpu fail addresses to file */
+    if (vcp->vc_found_from_gpu == 1 && 0 != str_cmp((const unsigned char *) vcp->vc_found_from_gpu_addr, (const unsigned char *) vcp->vc_stored_gpu_addr, 64)) {
+        char addr_buf[64];
+        EC_KEY *pkey_temp = vxcp->vxc_key;
+        BIGNUM *bn_temp;
+        BIGNUM *save_pkey = BN_dup(EC_KEY_get0_private_key(vxcp->vxc_key));
+
+        BN_hex2bn(&bn_temp, vcp->vc_found_from_gpu_addr);
+        vg_set_privkey(bn_temp, pkey_temp);
+        vg_encode_address((EC_POINT *) EC_KEY_get0_public_key(pkey_temp),
+                          EC_KEY_get0_group(pkey_temp),
+                          vcp->vc_pubkeytype, addr_buf);
+
+        vg_set_privkey(save_pkey, vxcp->vxc_key);
+
+
+        strncpy(vcp->vc_stored_gpu_addr, vcp->vc_found_from_gpu_addr, 66);
+        FILE *fp = fopen("gpu_fails.txt", "a");
+        if (!fp) {
+            fprintf(stderr,
+                    "ERROR: could not open result file: %s\n",
+                    strerror(errno));
+        } else {
+            fprintf(fp,
+                    "Address: %s\nPrivate: %s\n",
+                    addr_buf, vcp->vc_found_from_gpu_addr);
+            fclose(fp);
+        }
+
+        BN_free(save_pkey);
+    }
 }
 
 void
@@ -662,24 +703,6 @@ vg_context_wait_for_completion(vg_context_t *vcp)
 }
 
 //#defined DEBUG_PREFIXES
-
-int str_cmp(const unsigned char * a, const unsigned char * b, int len) {
-	for (int i=0; i < len; i++) {
-		if (a[i]<b[i]) {
-#ifdef DEBUG_PREFIXES
-		    printf("%02x less than %02x\n", a[i], b[i] );
-#endif
-		    return -1;
-		}
-		else if (a[i]>b[i]) {
-#ifdef DEBUG_PREFIXES
-            printf("%02x more than %02x\n", a[i], b[i] );
-#endif
-		    return 1;
-		}
-	}
-	return 0;
-}
 
 static vg_pattern_t *
 vg_pattern_search(vg_pattern_root_t *rootp, unsigned char * pattern)
